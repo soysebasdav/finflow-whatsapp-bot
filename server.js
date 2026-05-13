@@ -2,6 +2,7 @@ require('dotenv').config();
 const fs = require('fs');
 const express = require('express');
 const qrcode = require('qrcode-terminal');
+const qrcodeSvg = require('qrcode');
 const sharp = require('sharp');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 
@@ -80,6 +81,20 @@ function requireAuth(req, res, next) {
   }
 
   return res.status(401).json({ ok: false, error: 'unauthorized' });
+}
+
+function requireBrowserAuth(req, res, next) {
+  if (!BOT_API_TOKEN) {
+    return next();
+  }
+
+  const header = req.headers.authorization || '';
+  const token = String(req.query.token || '');
+  if (header === `Bearer ${BOT_API_TOKEN}` || token === BOT_API_TOKEN) {
+    return next();
+  }
+
+  return res.status(401).send('No autorizado. Abre esta URL usando ?token=TU_TOKEN o envía Authorization: Bearer TU_TOKEN.');
 }
 
 function extractInviteCode(raw) {
@@ -394,6 +409,79 @@ app.get('/status', requireAuth, async (req, res) => {
   } catch (error) {}
 
   res.json({ ok: true, state: lastKnownState, qrPending: Boolean(currentQr), wid, qr: currentQr });
+});
+
+app.get('/qr', requireBrowserAuth, async (req, res) => {
+  try {
+    if (!currentQr) {
+      const ready = lastKnownState === 'ready' || lastKnownState === 'authenticated';
+      return res.status(ready ? 200 : 404).send(`<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FinFlow WhatsApp Bot</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#0f172a; color:#fff; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; }
+    .card { background:#111827; border:1px solid #334155; border-radius:24px; padding:32px; max-width:560px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,.35); }
+    h1 { margin:0 0 12px; font-size:28px; }
+    p { color:#cbd5e1; line-height:1.45; }
+    code { background:#020617; padding:3px 6px; border-radius:6px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>FinFlow WhatsApp Bot</h1>
+    <p>Estado actual: <code>${lastKnownState}</code></p>
+    <p>${ready ? 'El bot ya está autenticado. No hay QR pendiente.' : 'Todavía no hay QR disponible. Espera unos segundos y recarga esta página.'}</p>
+  </div>
+</body>
+</html>`);
+    }
+
+    const svg = await qrcodeSvg.toString(currentQr, {
+      type: 'svg',
+      width: 420,
+      margin: 2,
+      color: { dark: '#0f172a', light: '#ffffff' }
+    });
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(`<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vincular WhatsApp - FinFlow</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#0f172a; color:#fff; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; }
+    .card { background:#f8fafc; color:#0f172a; border-radius:28px; padding:32px; max-width:560px; width:calc(100% - 32px); text-align:center; box-shadow:0 20px 60px rgba(0,0,0,.35); }
+    h1 { margin:0 0 8px; font-size:28px; }
+    p { color:#475569; line-height:1.45; margin:8px 0; }
+    .qr { margin:24px auto; width:420px; max-width:100%; background:#fff; padding:18px; border-radius:24px; border:1px solid #e2e8f0; }
+    .qr svg { width:100%; height:auto; display:block; }
+    .steps { text-align:left; background:#e2e8f0; border-radius:16px; padding:16px 18px; margin-top:18px; color:#0f172a; }
+    .small { font-size:13px; color:#64748b; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Escanea este QR</h1>
+    <p>WhatsApp → Dispositivos vinculados → Vincular dispositivo.</p>
+    <div class="qr">${svg}</div>
+    <div class="steps">
+      <strong>Después de escanear:</strong>
+      <p>Espera en Railway hasta ver <strong>WhatsApp bot listo.</strong></p>
+      <p>Luego esta página debe decir que ya no hay QR pendiente.</p>
+    </div>
+    <p class="small">Esta página está protegida con token. No compartas este enlace.</p>
+  </div>
+</body>
+</html>`);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).send('No fue posible renderizar el QR.');
+  }
 });
 
 app.post('/api/whatsapp/send-group', requireAuth, async (req, res) => {

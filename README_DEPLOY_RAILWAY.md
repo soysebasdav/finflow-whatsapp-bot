@@ -116,3 +116,14 @@ curl -X POST "https://TU-DOMINIO.up.railway.app/api/whatsapp/send-group" \
 - No subas `.wwebjs_auth`.
 - Usa un token largo.
 - El endpoint `/status` está protegido con Bearer Token para no exponer el QR públicamente.
+
+
+## QR legible en navegador
+
+Si el QR de los logs de Railway se ve borroso o cortado, usa el endpoint protegido:
+
+```txt
+https://TU-DOMINIO.up.railway.app/qr?token=TU_BOT_API_TOKEN
+```
+
+Ese enlace muestra el QR grande en una página web. No compartas ese enlace porque contiene el token del bot.
