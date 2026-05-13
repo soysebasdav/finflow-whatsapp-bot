@@ -145,3 +145,15 @@ Además, la ruta `/` ahora muestra una pantalla simple. Las rutas útiles son:
 /qr?token=TU_BOT_API_TOKEN
 /api/whatsapp/send-group
 ```
+
+
+## LOCKFIX Chromium / WhatsApp Web
+
+Esta versión limpia archivos temporales de Chromium (`SingletonLock`, `SingletonSocket`, `SingletonCookie`, `DevToolsActivePort`) antes de iniciar el cliente. Esto corrige el error:
+
+```txt
+The profile appears to be in use by another Chromium process
+Failed to launch the browser process: Code: 21
+```
+
+También confirma en Railway que el servicio tenga solo **1 replica**. Si el error aparece justo después de un redeploy, espera a que el despliegue anterior termine y ejecuta un Restart/Redeploy.

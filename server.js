@@ -14,6 +14,48 @@ const PUPPETEER_EXECUTABLE_PATH = String(process.env.PUPPETEER_EXECUTABLE_PATH |
 
 fs.mkdirSync(WWEBJS_DATA_PATH, { recursive: true });
 
+function removeStaleChromiumLocks(baseDir) {
+  const lockNames = new Set([
+    'SingletonLock',
+    'SingletonSocket',
+    'SingletonCookie',
+    'DevToolsActivePort',
+    'chrome_debug.log'
+  ]);
+
+  function walk(dir) {
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (error) {
+      return;
+    }
+
+    for (const entry of entries) {
+      const fullPath = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) {
+        walk(fullPath);
+        continue;
+      }
+
+      if (!lockNames.has(entry.name)) {
+        continue;
+      }
+
+      try {
+        fs.rmSync(fullPath, { force: true });
+        console.log(`Se eliminó lock temporal de Chromium: ${fullPath}`);
+      } catch (error) {
+        console.warn(`No se pudo eliminar lock temporal de Chromium: ${fullPath}`, error.message);
+      }
+    }
+  }
+
+  walk(baseDir);
+}
+
+removeStaleChromiumLocks(WWEBJS_DATA_PATH);
+
 const app = express();
 app.use(express.json({ limit: '2mb' }));
 
@@ -26,7 +68,10 @@ const puppeteerOptions = {
     '--no-sandbox',
     '--disable-setuid-sandbox',
     '--disable-dev-shm-usage',
-    '--disable-gpu'
+    '--disable-gpu',
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-background-networking'
   ]
 };
 
