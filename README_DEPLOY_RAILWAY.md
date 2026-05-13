@@ -127,3 +127,21 @@ https://TU-DOMINIO.up.railway.app/qr?token=TU_BOT_API_TOKEN
 ```
 
 Ese enlace muestra el QR grande en una página web. No compartas ese enlace porque contiene el token del bot.
+
+
+## CORRECCIÓN BUILD
+
+Esta versión evita `npm ci` porque el `package-lock.json` anterior podía quedar desactualizado frente a `package.json`.
+El Dockerfile usa:
+
+```bash
+npm install --omit=dev
+```
+
+Además, la ruta `/` ahora muestra una pantalla simple. Las rutas útiles son:
+
+```txt
+/health
+/qr?token=TU_BOT_API_TOKEN
+/api/whatsapp/send-group
+```

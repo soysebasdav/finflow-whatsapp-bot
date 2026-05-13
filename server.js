@@ -398,6 +398,32 @@ async function renderMediaFromPayload(renderType, renderData) {
   }
 }
 
+app.get('/', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FinFlow WhatsApp Bot</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#0f172a; color:#fff; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; }
+    .card { background:#111827; border:1px solid #334155; border-radius:24px; padding:32px; max-width:650px; box-shadow:0 20px 60px rgba(0,0,0,.35); }
+    h1 { margin:0 0 12px; font-size:30px; }
+    p { color:#cbd5e1; line-height:1.45; }
+    code { background:#020617; padding:3px 6px; border-radius:6px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>FinFlow WhatsApp Bot</h1>
+    <p>Servicio activo. Usa <code>/health</code> para validar estado.</p>
+    <p>Para escanear el QR abre <code>/qr?token=TU_BOT_API_TOKEN</code>.</p>
+  </div>
+</body>
+</html>`);
+});
+
 app.get('/health', (req, res) => {
   res.json({ ok: true, state: lastKnownState });
 });
