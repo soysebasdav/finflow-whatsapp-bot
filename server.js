@@ -261,37 +261,43 @@ function headerBlock({ width, margin, innerWidth, title, statusLabel, statusColo
     <text x="${margin + innerWidth - 150}" y="${margin + 54}" font-size="20" font-weight="700" fill="#FFFFFF" text-anchor="middle">${escapeXml(statusLabel)}</text>`;
 }
 
-function entityInfoBlock({ margin, innerWidth, name, subtitle, registeredBy, reviewedBy, generatedAt }) {
+function entityInfoBlock({ margin, innerWidth, name, subtitle, registeredBy, reviewedBy, generatedAt, recipientNote = '' }) {
+  const recipientLine = String(recipientNote || '').trim()
+    ? `<text x="${margin + 34}" y="${margin + 270}" font-size="18" font-weight="600" fill="#0F766E">${escapeXml(recipientNote)}</text>`
+    : '';
   return `
     <text x="${margin + 34}" y="${margin + 150}" font-size="42" font-weight="700" fill="#0F172A">${escapeXml(truncate(name || 'Sin nombre', 60))}</text>
     ${infoPill(margin + 34, margin + 184, subtitle || 'Movimiento confirmado')}
     <text x="${margin + 34}" y="${margin + 218}" font-size="18" font-weight="500" fill="#475569">Registrado por: ${escapeXml(registeredBy || 'Sistema')}</text>
     <text x="${margin + 34}" y="${margin + 244}" font-size="18" font-weight="500" fill="#475569">Revisado por: ${escapeXml(reviewedBy || 'Sistema')}</text>
+    ${recipientLine}
     <text x="${margin + innerWidth - 34}" y="${margin + 218}" font-size="18" font-weight="500" fill="#64748B" text-anchor="end">Generado: ${escapeXml(generatedAt || '-')}</text>`;
 }
 
 async function renderPaymentApprovedSummaryBuffer(data = {}) {
-  const rows = Array.isArray(data.movementHistory) ? data.movementHistory.slice(0, 10) : [];
+  const rows = Array.isArray(data.movementHistory) ? data.movementHistory.slice(0, 5) : [];
   const width = 1680;
   const margin = 48;
   const innerWidth = width - (margin * 2);
   const metricGap = 18;
   const metricWidth = (innerWidth - (metricGap * 2)) / 3;
   const metricHeight = 86;
-  const summaryTop = 310;
-  const tableTop = 560;
-  const rowHeight = 52;
+  const summaryTop = 330;
+  const breakdownHeight = data.isSharedDebt ? 76 : 0;
+  const breakdownTop = summaryTop + (metricHeight * 2) + 36;
+  const tableTop = data.isSharedDebt ? (breakdownTop + breakdownHeight + 44) : 560;
+  const rowHeight = 56;
   const tableHeaderHeight = 44;
   const footerHeight = 76;
   const height = tableTop + tableHeaderHeight + (rows.length * rowHeight) + footerHeight + 54;
 
   const metrics = [
-    { label: 'Valor pagado', value: data.amount || '-', accent: '#10B981' },
-    { label: 'Fecha real del pago', value: data.paymentDate || '-', accent: '#3B82F6' },
-    { label: 'Interés pagado', value: data.interestPaid || '-', accent: '#8B5CF6' },
-    { label: 'Capital pagado', value: data.capitalPaid || '-', accent: '#F97316', valueColor: currencyColor(data.capitalPaid || '-') },
+    { label: 'Abono', value: data.amount || '-', accent: '#10B981' },
+    { label: 'Fecha del abono', value: data.paymentDate || '-', accent: '#3B82F6' },
+    { label: 'Interés', value: data.interestPaid || '-', accent: '#8B5CF6' },
+    { label: 'Amortización', value: data.capitalPaid || '-', accent: '#F97316', valueColor: currencyColor(data.capitalPaid || '-') },
     { label: 'Saldo actual', value: data.currentBalance || '-', accent: '#334155' },
-    { label: 'Próximo vencimiento', value: data.nextDueDate || '-', accent: '#14B8A6' }
+    { label: 'Días', value: (data.daysLabel && String(data.daysLabel).trim() !== '') ? String(data.daysLabel) : '-', accent: '#14B8A6' }
   ];
 
   const metricCards = metrics.map((item, index) => {
@@ -303,13 +309,13 @@ async function renderPaymentApprovedSummaryBuffer(data = {}) {
   }).join('');
 
   const columns = [
-    { key: 'date', label: 'Fecha', width: 150, align: 'start' },
-    { key: 'movementLabel', label: 'Movimiento', width: 220, align: 'start' },
-    { key: 'amount', label: 'Monto', width: 160, align: 'end' },
-    { key: 'balanceBefore', label: 'Saldo antes', width: 210, align: 'end' },
-    { key: 'balanceAfter', label: 'Saldo después', width: 210, align: 'end' },
-    { key: 'interestPaid', label: 'Interés pagado', width: 190, align: 'end' },
-    { key: 'capitalPaid', label: 'Capital pagado', width: 190, align: 'end' }
+    { key: 'date', label: 'Fecha', width: 140, align: 'start' },
+    { key: 'days', label: 'Días', width: 90, align: 'end' },
+    { key: 'interest', label: 'Interés', width: 170, align: 'end' },
+    { key: 'abono', label: 'Abono', width: 170, align: 'end' },
+    { key: 'amortization', label: 'Amortización', width: 180, align: 'end' },
+    { key: 'balanceBefore', label: 'Saldo anterior', width: 210, align: 'end' },
+    { key: 'balanceAfter', label: 'Saldo actual', width: 210, align: 'end' }
   ];
 
   const headerX = margin + 16;
@@ -331,25 +337,33 @@ async function renderPaymentApprovedSummaryBuffer(data = {}) {
     let x = headerX;
     const cells = columns.map((column) => {
       const value = row[column.key] || '-';
-      const cell = tableCell(x, baseY + 32, column.width, value, {
+      const cell = tableCell(x, baseY + 30, column.width, value, {
         align: column.align,
-        color: column.key === 'capitalPaid' ? currencyColor(value) : '#0F172A',
-        fontWeight: column.key === 'capitalPaid' && String(value || '').startsWith('-') ? 700 : 500,
+        color: column.key === 'amortization' ? currencyColor(value) : '#0F172A',
+        fontWeight: column.key === 'amortization' && String(value || '').startsWith('-') ? 700 : 500,
         fontSize: 17
       });
       x += column.width;
       return cell;
     }).join('');
 
+    const breakdown = '';
+
     return `
       <g>
         <rect x="${margin}" y="${baseY}" width="${innerWidth}" height="${rowHeight}" fill="${background}" />
         <line x1="${margin}" y1="${baseY + rowHeight}" x2="${margin + innerWidth}" y2="${baseY + rowHeight}" stroke="#E2E8F0" />
         ${cells}
+        ${breakdown}
       </g>`;
   }).join('');
 
   const subtitle = [data.counterpartyType || null, data.identifier ? `ID ${data.identifier}` : null].filter(Boolean).join(' · ');
+  const breakdownBox = data.isSharedDebt ? `
+    <rect x="${margin}" y="${breakdownTop}" width="${innerWidth}" height="${breakdownHeight}" rx="18" fill="#F8FAFC" stroke="#E2E8F0" />
+    <text x="${margin + 26}" y="${breakdownTop + 28}" font-size="18" font-weight="700" fill="#0F172A">Distribución del interés del abono aprobado</text>
+    <text x="${margin + 26}" y="${breakdownTop + 56}" font-size="17" font-weight="600" fill="#475569">${escapeXml((data.ownerBreakdownLabel || 'Para mí') + ': ' + (data.ownerInterestShare || '-'))}</text>
+    <text x="${margin + 520}" y="${breakdownTop + 56}" font-size="17" font-weight="600" fill="#475569">${escapeXml((data.sharedBreakdownLabel || 'Acreedor compartido') + ': ' + (data.sharedInterestShare || '-'))}</text>` : '';
 
   const svg = `
   <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -357,8 +371,9 @@ async function renderPaymentApprovedSummaryBuffer(data = {}) {
     <rect x="${margin}" y="${margin}" width="${innerWidth}" height="${height - (margin * 2)}" rx="28" fill="#FFFFFF" stroke="#E2E8F0" />
 
     ${headerBlock({ width, margin, innerWidth, title: data.title || 'Pago aprobado', statusLabel: data.statusLabel || 'APROBADO', statusColor: data.statusColor || '#10B981' })}
-    ${entityInfoBlock({ margin, innerWidth, name: data.counterpartyName, subtitle, registeredBy: data.registeredBy, reviewedBy: data.reviewedBy, generatedAt: data.generatedAt })}
+    ${entityInfoBlock({ margin, innerWidth, name: data.counterpartyName, subtitle, registeredBy: data.registeredBy, reviewedBy: data.reviewedBy, generatedAt: data.generatedAt, recipientNote: data.recipientNote || '' })}
     ${metricCards}
+    ${breakdownBox}
 
     <text x="${margin + 20}" y="${tableTop - 18}" font-size="28" font-weight="700" fill="#0F172A">Historial oficial de movimientos</text>
     <rect x="${margin}" y="${tableTop}" width="${innerWidth}" height="${tableHeaderHeight}" rx="16" fill="#0F172A" />
