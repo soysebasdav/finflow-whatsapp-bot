@@ -223,6 +223,47 @@ function currencyColor(value) {
   return String(value || '').trim().startsWith('-') ? '#C0392B' : '#0F172A';
 }
 
+function firstFilled(...values) {
+  for (const value of values) {
+    if (value === undefined || value === null) {
+      continue;
+    }
+
+    if (String(value).trim() !== '') {
+      return value;
+    }
+  }
+
+  return '-';
+}
+
+function resolveInterestDisplay(data = {}) {
+  return firstFilled(
+    data.interestBudgeted,
+    data.budgetedInterest,
+    data.interestProjected,
+    data.projectedInterest,
+    data.projectedInterestBefore,
+    data.interestDisplay,
+    data.interestPaid
+  );
+}
+
+function resolveMovementValue(row = {}, key) {
+  if (key === 'interest') {
+    return firstFilled(
+      row.interestBudgeted,
+      row.budgetedInterest,
+      row.interestProjected,
+      row.projectedInterest,
+      row.interestDisplay,
+      row.interest
+    );
+  }
+
+  return firstFilled(row[key]);
+}
+
 function metricCard(x, y, width, height, label, value, accent, valueColor = '#0F172A') {
   return `
     <g>
@@ -294,7 +335,7 @@ async function renderPaymentApprovedSummaryBuffer(data = {}) {
   const metrics = [
     { label: 'Abono', value: data.amount || '-', accent: '#10B981' },
     { label: 'Fecha del abono', value: data.paymentDate || '-', accent: '#3B82F6' },
-    { label: 'Interés', value: data.interestPaid || '-', accent: '#8B5CF6' },
+    { label: 'Interés presupuestado', value: resolveInterestDisplay(data), accent: '#8B5CF6' },
     { label: 'Amortización', value: data.capitalPaid || '-', accent: '#F97316', valueColor: currencyColor(data.capitalPaid || '-') },
     { label: 'Saldo actual', value: data.currentBalance || '-', accent: '#334155' },
     { label: 'Días', value: (data.daysLabel && String(data.daysLabel).trim() !== '') ? String(data.daysLabel) : '-', accent: '#14B8A6' }
@@ -309,13 +350,12 @@ async function renderPaymentApprovedSummaryBuffer(data = {}) {
   }).join('');
 
   const columns = [
-    { key: 'date', label: 'Fecha', width: 140, align: 'start' },
-    { key: 'days', label: 'Días', width: 90, align: 'end' },
-    { key: 'interest', label: 'Interés', width: 170, align: 'end' },
-    { key: 'abono', label: 'Abono', width: 170, align: 'end' },
-    { key: 'amortization', label: 'Amortización', width: 180, align: 'end' },
-    { key: 'balanceBefore', label: 'Saldo anterior', width: 210, align: 'end' },
-    { key: 'balanceAfter', label: 'Saldo actual', width: 210, align: 'end' }
+    { key: 'date', label: 'Fecha', width: 190, align: 'start' },
+    { key: 'days', label: 'Días', width: 110, align: 'end' },
+    { key: 'interest', label: 'Interés presup.', width: 300, align: 'end' },
+    { key: 'abono', label: 'Abono', width: 300, align: 'end' },
+    { key: 'amortization', label: 'Amortización', width: 310, align: 'end' },
+    { key: 'balanceAfter', label: 'Saldo actual', width: 320, align: 'end' }
   ];
 
   const headerX = margin + 16;
@@ -336,7 +376,7 @@ async function renderPaymentApprovedSummaryBuffer(data = {}) {
     const background = index % 2 === 0 ? '#F8FAFC' : '#FFFFFF';
     let x = headerX;
     const cells = columns.map((column) => {
-      const value = row[column.key] || '-';
+      const value = resolveMovementValue(row, column.key);
       const cell = tableCell(x, baseY + 30, column.width, value, {
         align: column.align,
         color: column.key === 'amortization' ? currencyColor(value) : '#0F172A',
